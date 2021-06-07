@@ -115,8 +115,8 @@ cdef class PTF():
 
         # Initialize this PTF's internal tracking parameters
         self.angular_separation = 2.0*M_PI/float(self.params.probe_count)
-        self.probe_step_size    = self.params.probe_length/(self.params.probe_quality-1)
-        self.probe_normalizer   = 1.0/float(self.params.probe_quality*self.params.probe_count)
+        self.probe_step_size = self.params.probe_length/(self.params.probe_quality-1)
+        self.probe_normalizer = 1.0/float(self.params.probe_quality*self.params.probe_count)
 
 
     # First set the (initial) position of the parallel transport frame (PTF), i.e. set the seed point
@@ -156,7 +156,7 @@ cdef class PTF():
                 self.likelihood += fodAmp
 
         self.init_first_val_cand = self.likelihood
-        self.last_val_cand      = self.likelihood
+        self.last_val_cand = self.likelihood
 
         return self.calcDataSupport()
 
@@ -171,18 +171,18 @@ cdef class PTF():
         cdef float[3] T
 
         for i in range(3):
-            self.p[i]    = self.PP[0]*self.F[0][i] +  self.PP[1]*self.F[1][i]  +  self.PP[2]*self.F[2][i] + self.p[i]
-            T[i]         = self.PP[3]*self.F[0][i] +  self.PP[4]*self.F[1][i]  +  self.PP[5]*self.F[2][i]
-            self.F[2][i] = self.PP[6]*self.F[0][i] +  self.PP[7]*self.F[1][i]  +  self.PP[8]*self.F[2][i]
+            self.p[i] = self.PP[0]*self.F[0][i] +  self.PP[1]*self.F[1][i]  +  self.PP[2] * self.F[2][i] + self.p[i]
+            T[i] = self.PP[3]*self.F[0][i] +  self.PP[4]*self.F[1][i]  +  self.PP[5] * self.F[2][i]
+            self.F[2][i] = self.PP[6]*self.F[0][i] +  self.PP[7]*self.F[1][i] + self.PP[8] * self.F[2][i]
 
         normalize(T)
         cross(self.F[1],self.F[2],T)
         normalize(self.F[1])
         cross(self.F[2],T,self.F[1])
 
-        self.F[0][0]    = T[0]
-        self.F[0][1]    = T[1]
-        self.F[0][2]    = T[2]
+        self.F[0][0] = T[0]
+        self.F[0][1] = T[1]
+        self.F[0][2] = T[2]
 
         self.likelihood = 0.0
 
@@ -195,10 +195,10 @@ cdef class PTF():
     # Copies PTF parameters then flips the curve. This function can be used after the initial curve is picked in order to save a copy of the curve for tracking towards the other side.
     cdef void getFlippedCopy(self,PTF ptf):
 
-        self.k1       =  ptf.k1
-        self.k2       =  ptf.k2
-        self.k1_cand  =  ptf.k1_cand
-        self.k2_cand  =  ptf.k2_cand
+        self.k1 =  ptf.k1
+        self.k2 =  ptf.k2
+        self.k1_cand =  ptf.k1_cand
+        self.k2_cand =  ptf.k2_cand
 
         for i in range(3):
             self.p[i] = ptf.p[i]
@@ -206,48 +206,44 @@ cdef class PTF():
                 self.F[i][j] = ptf.F[i][j]
 
         for i in range(9):
-            self.PP[i]  = ptf.PP[i]
+            self.PP[i] = ptf.PP[i]
 
-        self.likelihood 	   = ptf.likelihood
-        self.init_first_val      = ptf.init_first_val
-        self.last_val           = ptf.last_val
+        self.likelihood 	 = ptf.likelihood
+        self.init_first_val = ptf.init_first_val
+        self.last_val = ptf.last_val
         self.init_first_val_cand = ptf.init_first_val_cand
-        self.last_val_cand      = ptf.last_val_cand
+        self.last_val_cand = ptf.last_val_cand
 
         for i in range(3):
             self.F[0][i] *= -1.0
             self.F[1][i] *= -1.0
 
-        self.k1         *= -1.0
-        self.k1_cand    *= -1.0
+        self.k1 *= -1.0
+        self.k1_cand *= -1.0
 
-        self.likelihood  = 0.0
-        self.last_val     = self.init_first_val
+        self.likelihood = 0.0
+        self.last_val = self.init_first_val
 
     # Randomly generate 3 unit vectors that are orthogonal to each other.
     # This is used for initializing the moving frame of the tracker
     # Optionally, the initial direction, i.e., tangent, can also be provided
     # if norm(_dir.size)==0, then the tangent will also be a random vector
     cdef void getARandomFrame(self,float[:] _dir):
-
         if (norm(_dir)==0):
             getAUnitRandomVector(self.F[0])
         else:
             self.F[0][0] = _dir[0]
             self.F[0][1] = _dir[1]
             self.F[0][2] = _dir[2]
-
         getAUnitRandomPerpVector(self.F[2],self.F[0])
         cross(self.F[1],self.F[2],self.F[0])
 
 
     # Prepares the propagator, PP, that is used for transporting the moving frame forward
     cdef void prepPropagator(self, float t):
-
         cdef float tto2
 
-        if ( (abs(self.k1_cand)<0.0001) & (abs(self.k2_cand)<0.0001) ) :
-
+        if ( (abs(self.k1_cand) < 0.0001) & (abs(self.k2_cand) < 0.0001) ) :
             self.PP[0] = t
             self.PP[1] = 0
             self.PP[2] = 0
@@ -257,34 +253,34 @@ cdef class PTF():
             self.PP[6] = 0
             self.PP[7] = 0
             self.PP[8] = 1
+        else:
+            if (abs(self.k1_cand) < 0.0001):
+                self.k1_cand = 0.0001
+            if (abs(self.k2_cand) < 0.0001):
+                self.k2_cand = 0.0001
 
-        else :
-
-            if (abs(self.k1_cand)<0.0001): self.k1_cand = 0.0001
-            if (abs(self.k2_cand)<0.0001): self.k2_cand = 0.0001
-
-            tto2  = t*t/2.0
+            tto2 = t * t / 2.0
 
             self.PP[0] = t
-            self.PP[1] = self.k1_cand*tto2
-            self.PP[2] = self.k2_cand*tto2
-            self.PP[3] = 1-self.k2_cand*self.k2_cand*tto2-self.k1_cand*self.k1_cand*tto2
-            self.PP[4] = self.k1_cand*t
-            self.PP[5] = self.k2_cand*t
-            self.PP[6] = -self.k2_cand*t
-            self.PP[7] = -self.k1_cand*self.k2_cand*tto2
-            self.PP[8] = 1-self.k2_cand*self.k2_cand*tto2
+            self.PP[1] = self.k1_cand * tto2
+            self.PP[2] = self.k2_cand * tto2
+            self.PP[3] = 1 - (self.k2_cand * self.k2_cand * tto2-self.k1_cand
+                              * self.k1_cand * tto2)
+            self.PP[4] = self.k1_cand * t
+            self.PP[5] = self.k2_cand * t
+            self.PP[6] = - self.k2_cand * t
+            self.PP[7] = - self.k1_cand * self.k2_cand * tto2
+            self.PP[8] = 1 - self.k2_cand * self.k2_cand * tto2
 
     # Calculates data support for the candidate probe
     cdef float calcDataSupport(self):
-
-        cdef float        fodAmp = 0.0
-        cdef float[3]    _p
+        cdef float fodAmp = 0.0
+        cdef float[3] _p
         cdef float[3][3] _F
-        cdef float[3]    _T      = {0,0,0}
-        cdef float[3]    _N1     = {0,0,0}
-        cdef float[3]    _N2     = {0,0,0}
-        cdef float[3]     pp
+        cdef float[3] _T = {0,0,0}
+        cdef float[3] _N1 = {0,0,0}
+        cdef float[3] _N2 = {0,0,0}
+        cdef float[3] pp
 
         self.prepPropagator(self.params.probe_step_size)
 
@@ -296,46 +292,47 @@ cdef class PTF():
         self.likelihood = self.last_val
 
         for q in range(self.params.probe_quality-1):
-
             for i in range(3):
-                _p[i] = self.PP[0]*_F[0][i] +  self.PP[1]*_F[1][i]  +  self.PP[2]*_F[2][i] + _p[i]
-                _T[i] = self.PP[3]*_F[0][i] +  self.PP[4]*_F[1][i]  +  self.PP[5]*_F[2][i]
-
+                _p[i] = (self.PP[0] * _F[0][i]
+                         +  self.PP[1]*_F[1][i]
+                         +  self.PP[2]*_F[2][i] + _p[i])
+                _T[i] = (self.PP[3]*_F[0][i]
+                         +  self.PP[4]*_F[1][i]
+                         +  self.PP[5]*_F[2][i])
             normalize(_T)
 
-            if (q < self.params.probe_quality-1):
-
+            if (q < self.params.probe_quality - 1):
                 for i in range(3):
-                    _N2[i]  = self.PP[6]*_F[0][i] +  self.PP[7]*_F[1][i]  +  self.PP[8]*_F[2][i]
-
+                    _N2[i] = (self.PP[6] * _F[0][i]
+                              + self.PP[7] * _F[1][i]
+                              +  self.PP[8]*_F[2][i])
                 cross(_N1,_N2,_T)
-
                 for i in range(3):
-                    _F[0][i] =  _T[i]
+                    _F[0][i] = _T[i]
                     _F[1][i] = _N1[i]
                     _F[2][i] = _N2[i]
 
-
-            if (self.params.probe_count==1):
-
-                # fodAmp       = getFODamp(_p,_T)
+            if (self.params.probe_count == 1):
+                # fodAmp = getFODamp(_p,_T)
                 self.last_val_cand = fodAmp
                 self.likelihood  += self.last_val_cand
 
             else :
-
                 self.last_val_cand = 0
-
-                if (q == self.params.probe_quality-1):
+                if (q == self.params.probe_quality - 1):
                     for i in range(3):
-                        _N2[i]  = self.PP[6]*_F[0][i] +  self.PP[7]*_F[1][i]  +  self.PP[8]*_F[2][i]
+                        _N2[i] = (self.PP[6]*_F[0][i]
+                                  + self.PP[7] * _F[1][i]
+                                  + self.PP[8] * _F[2][i])
                     cross(_N1,_N2,_T)
 
                 for c in range(self.params.probe_count):
-
                     for i in range(3):
-                        pp[i] = _p[i] + _N1[i]*self.params.probe_radius*cos(c*self.params.angular_separation) + _N2[i]*self.params.probe_radius*sin(c*self.params.angular_separation)
-
+                        pp[i] = (_p[i]
+                                 + _N1[i] * self.params.probe_radius
+                                 * cos(c * self.params.angular_separation)
+                                 + _N2[i] * self.params.probe_radius
+                                 * sin(c * self.params.angular_separation))
                     # fodAmp = getFODamp(pp,_T)
                     self.last_val_cand += fodAmp
 
@@ -345,11 +342,9 @@ cdef class PTF():
 
         self.likelihood *= self.params.probe_normalizer
         if (self.params.data_support_exponent != 1):
-            self.likelihood  = pow(self.likelihood,self.params.data_support_exponent)
+            self.likelihood = pow(self.likelihood, self.params.data_support_exponent)
 
         return self.likelihood
-
-
 
 cdef class PTTDirectionGetter(ProbabilisticDirectionGetter):
     """Randomly samples direction of a sphere based on probability mass
