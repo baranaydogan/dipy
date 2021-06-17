@@ -8,6 +8,7 @@ Implementation of parallel transport tractography (PTT)
 
 from random import random
 
+cimport cython
 import numpy as np
 cimport numpy as cnp
 
@@ -347,24 +348,9 @@ cdef class PTF():
         return self.likelihood
 
 cdef class PTTDirectionGetter(ProbabilisticDirectionGetter):
-    """Randomly samples direction of a sphere based on probability mass
-    function (pmf).
+    """Paralle Transport Frame Direction Getter.
 
-    The main constructors for this class are current from_pmf and from_shcoeff.
-    The pmf gives the probability that each direction on the sphere should be
-    chosen as the next direction. To get the true pmf from the "raw pmf"
-    directions more than ``max_angle`` degrees from the incoming direction are
-    set to 0 and the result is normalized.
     """
-
-    # cdef int propagate(self):
-    #     return 0
-
-    # cdef int initialize(self):
-    #     return 0
-
-    # cdef int flip(self):
-    #     return 0
 
     def __init__(self, pmf_gen, max_angle, sphere, pmf_threshold=.1, **kwargs):
         """Direction getter from a pmf generator.
@@ -397,10 +383,9 @@ cdef class PTTDirectionGetter(ProbabilisticDirectionGetter):
         ProbabilisticDirectionGetter.__init__(self, pmf_gen, max_angle, sphere,
                                        pmf_threshold, **kwargs)
 
-    # @cython.boundscheck(False)
-    # @cython.wraparound(False)
-    # @cython.cdivision(True)
-
+    @cython.boundscheck(False)
+    @cython.wraparound(False)
+    @cython.cdivision(True)
     cpdef tuple generate_streamline(self,
                                     double[::1] seed,
                                     double[::1] dir,
