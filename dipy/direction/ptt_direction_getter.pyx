@@ -6,8 +6,6 @@
 Implementation of parallel transport tractography (PTT)
 """
 
-from random import random
-
 cimport cython
 import numpy as np
 cimport numpy as cnp
@@ -25,22 +23,19 @@ from dipy.tracking.stopping_criterion cimport (StreamlineStatus,
                                                PYERROR)
 from dipy.tracking.direction_getter cimport _fixed_step, _step_to_boundary
 
+from libc.math cimport sqrt, fabs, pow, sin, cos
 
-from libc.stdlib cimport rand
-from libc.math cimport sqrt, fabs, M_PI, pow, sin, cos
-
-cdef extern from "limits.h":
-    int INT_MAX
-
-# Pick a random number between -1 and 1
 cdef float unidis_m1_p1():
-    return 2.0*rand()/float(INT_MAX) - 1.0
+    """
+    Generate a random number between -1 and 1
+    """
+    return 2.0 * np.random.rand() - 1.0
 
 cdef float norm(float[:] v):
     return sqrt(v[0]*v[0]+v[1]*v[1]+v[2]*v[2])
 
 cdef void normalize(float[:] v):
-    cdef float scale = 1.0/sqrt(v[0]*v[0]+v[1]*v[1]+v[2]*v[2])
+    cdef float scale = 1.0 / sqrt(v[0]*v[0]+v[1]*v[1]+v[2]*v[2])
     v[0] = v[0]*scale
     v[1] = v[1]*scale
     v[2] = v[2]*scale
@@ -74,8 +69,9 @@ cdef (float,float) getARandomPointWithinDisk(float r):
     return (r*x,r*y)
 
 
-# Tracking Parameters
-# (This might not be necessary but I am still putting it here for completeness. We can remove it later if we find it redundant.)
+#Tracking Parameters
+#(This might not be necessary but I am still putting it here for
+#completeness. We can remove it later if we find it redundant.)
 cdef struct TP:
     float step_size
     float max_curvature
@@ -85,8 +81,10 @@ cdef struct TP:
     float probe_count
     float data_support_exponent
 
-# Parallel Trasport Frame
 cdef class PTF():
+    """
+    Parallel Trasport Frame
+    """
 
     cdef TP          params                # Tracking parameters for this frame.
     cdef float[3]    p                     # Last position
@@ -108,33 +106,45 @@ cdef class PTF():
     cdef float       init_first_val_cand
 
 
-    # For each streamline, create a new PTF object with tracking parameters
     def __init__(self, TP _params):
+        """
+        For each streamline, create a new PTF object with tracking parameters
+        """
 
         # Set this PTF's parameters
         self.params = _params
 
         # Initialize this PTF's internal tracking parameters
-        self.angular_separation = 2.0*M_PI/float(self.params.probe_count)
-        self.probe_step_size = self.params.probe_length/(self.params.probe_quality-1)
-        self.probe_normalizer = 1.0/float(self.params.probe_quality*self.params.probe_count)
+        self.angular_separation = 2.0 * np.pi / float(self.params.probe_count)
+        self.probe_step_size = self.params.probe_length / (self.params.probe_quality - 1)
+        self.probe_normalizer = 1.0 / float(self.params.probe_quality * self.params.probe_count)
 
 
-    # First set the (initial) position of the parallel transport frame (PTF), i.e. set the seed point
     cdef void set_position(self, float[:] pos):
+        """
+        First set the (initial) position of the parallel transport frame (PTF),
+        i.e. set the seed point
+        """
         self.p[0] = pos[0]
         self.p[1] = pos[1]
         self.p[2] = pos[2]
 
-    # After initial position is set, a random PTF (a walking frame, i.e., 3 orthonormal vectors (F), plus 2 scalars, i.e., k1 and k2) is set with this function.
-    # Optionally, the tangential component of PTF can be user provided with the input initDir parameter.
-    # Use initdir={0,0,0} if initDir is not available.
-    # A point + PTF parametrizes a curve that is named the "probe". Using probe parameters (probe_length, probe_radius, probe_quality, probe_count),
-    # a short fiber bundle segment is modelled.
-    # This function does NOT pick the initial curve. It only returns the datasupport (likelihood) value for a randomly picked candidate.
     cdef float getInitCandidate(self, float[:] initDir):
+        """
+        After initial position is set, a random PTF (a walking frame, i.e., 3
+        orthonormal vectors (F), plus 2 scalars, i.e., k1 and k2) is set with this
+        function.
+        Optionally, the tangential component of PTF can be user provided with the
+        input initDir parameter.
+        Use initdir={0,0,0} if initDir is not available.
+        A point + PTF parametrizes a curve that is named the "probe". Using probe
+        parameters (probe_length, probe_radius, probe_quality, probe_count),
+        a short fiber bundle segment is modelled.
+        This function does NOT pick the initial curve. It only returns the
+        datasupport (likelihood) value for a randomly picked candidate.
+        """
 
-        cdef float    fodAmp = 0.0
+        cdef float fodAmp = 0.0
         cdef float[3] pp
 
         self.getARandomFrame(initDir)
@@ -187,18 +197,24 @@ cdef class PTF():
 
         self.likelihood = 0.0
 
-    # Using the current position, pick a random curve parametrization. The walking frame (F) is same, only the k1 and k2 are randomly picked. This was a smooth curve is sampled.
-    # This function does NOT pick the next curve. It only returns the datasupport (likelihood) value for the randomly picked candidate.
     cdef float getCandidate(self):
+        """
+        Using the current position, pick a random curve parametrization. The walking frame (F) is same, only the k1 and k2 are randomly picked. This was a smooth curve is sampled.
+        This function does NOT pick the next curve. It only returns the datasupport (likelihood) value for the randomly picked candidate.
+        """
         (self.k1_cand,self.k2_cand) = getARandomPointWithinDisk(self.params.max_curvature)
         return self.calcDataSupport()
 
-    # Copies PTF parameters then flips the curve. This function can be used after the initial curve is picked in order to save a copy of the curve for tracking towards the other side.
-    cdef void getFlippedCopy(self,PTF ptf):
 
-        self.k1 =  ptf.k1
+    cdef void getFlippedCopy(self, ptf):
+        """
+        Copies PTF parameters then flips the curve. This function can be used
+        after the initial curve is picked in order to save a copy of the curve
+        for tracking towards the other side.
+        """
+        self.k1 =  ptf.k1 * -1
         self.k2 =  ptf.k2
-        self.k1_cand =  ptf.k1_cand
+        self.k1_cand =  ptf.k1_cand * -1
         self.k2_cand =  ptf.k2_cand
 
         for i in range(3):
@@ -209,9 +225,9 @@ cdef class PTF():
         for i in range(9):
             self.PP[i] = ptf.PP[i]
 
-        self.likelihood 	 = ptf.likelihood
+        #self.likelihood = ptf.likelihood # GAB: Can this be removed?
         self.init_first_val = ptf.init_first_val
-        self.last_val = ptf.last_val
+        #self.last_val = ptf.last_val # GAB: Can this be removed?
         self.init_first_val_cand = ptf.init_first_val_cand
         self.last_val_cand = ptf.last_val_cand
 
@@ -219,17 +235,17 @@ cdef class PTF():
             self.F[0][i] *= -1.0
             self.F[1][i] *= -1.0
 
-        self.k1 *= -1.0
-        self.k1_cand *= -1.0
-
         self.likelihood = 0.0
-        self.last_val = self.init_first_val
+        self.last_val = self.init_first_val # GAB: Is this correct?
 
-    # Randomly generate 3 unit vectors that are orthogonal to each other.
-    # This is used for initializing the moving frame of the tracker
-    # Optionally, the initial direction, i.e., tangent, can also be provided
-    # if norm(_dir.size)==0, then the tangent will also be a random vector
+
     cdef void getARandomFrame(self,float[:] _dir):
+        """
+        Randomly generate 3 unit vectors that are orthogonal to each other.
+        This is used for initializing the moving frame of the tracker
+        Optionally, the initial direction, i.e., tangent, can also be provided
+        if norm(_dir.size)==0, then the tangent will also be a random vector
+        """
         if (norm(_dir)==0):
             getAUnitRandomVector(self.F[0])
         else:
@@ -239,9 +255,11 @@ cdef class PTF():
         getAUnitRandomPerpVector(self.F[2],self.F[0])
         cross(self.F[1],self.F[2],self.F[0])
 
-
-    # Prepares the propagator, PP, that is used for transporting the moving frame forward
     cdef void prepPropagator(self, float t):
+        """
+        Prepares the propagator, PP, that is used for transporting the moving frame
+        forward
+        """
         cdef float tto2
 
         if ( (abs(self.k1_cand) < 0.0001) & (abs(self.k2_cand) < 0.0001) ) :
@@ -273,8 +291,11 @@ cdef class PTF():
             self.PP[7] = - self.k1_cand * self.k2_cand * tto2
             self.PP[8] = 1 - self.k2_cand * self.k2_cand * tto2
 
-    # Calculates data support for the candidate probe
+
     cdef float calcDataSupport(self):
+        """
+        Calculates data support for the candidate probe
+        """
         cdef float fodAmp = 0.0
         cdef float[3] _p
         cdef float[3][3] _F
@@ -314,6 +335,7 @@ cdef class PTF():
                     _F[2][i] = _N2[i]
 
             if (self.params.probe_count == 1):
+                #pmf = self._get_pmf(point)
                 # fodAmp = getFODamp(_p,_T)
                 self.last_val_cand = fodAmp
                 self.likelihood  += self.last_val_cand
